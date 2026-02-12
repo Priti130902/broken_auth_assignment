@@ -49,7 +49,8 @@ app.post("/auth/login", (req, res) => {
     // Store OTP
     otpStore[loginSessionId] = otp;
 
-    console.log(`[OTP] Session ${loginSessionId} generated`);
+  console.log(`[OTP] Session ${loginSessionId} generated OTP: ${otp}`);
+
 
     return res.status(200).json({
       message: "OTP sent",
@@ -107,47 +108,38 @@ app.post("/auth/verify-otp", (req, res) => {
   }
 });
 
+app.use(cookieParser()); // 👈 TOP pe add karo
+
 app.post("/auth/token", (req, res) => {
   try {
-    const token = req.headers.authorization;
+    const sessionId = req.cookies.session_token;
 
-    if (!token) {
-      return res
-        .status(401)
-        .json({ error: "Unauthorized - valid session required" });
+    if (!sessionId) {
+      return res.status(401).json({ error: "Session cookie missing" });
     }
 
-    const session = loginSessions[token.replace("Bearer ", "")];
-
+    const session = loginSessions[sessionId];
     if (!session) {
       return res.status(401).json({ error: "Invalid session" });
     }
 
-    // Generate JWT
     const secret = process.env.JWT_SECRET || "default-secret-key";
 
     const accessToken = jwt.sign(
-      {
-        email: session.email,
-        sessionId: token,
-      },
+      { email: session.email },
       secret,
-      {
-        expiresIn: "15m",
-      }
+      { expiresIn: "15m" }
     );
 
-    return res.status(200).json({
+    return res.json({
       access_token: accessToken,
       expires_in: 900,
     });
   } catch (error) {
-    return res.status(500).json({
-      status: "error",
-      message: "Token generation failed",
-    });
+    return res.status(500).json({ message: "Token generation failed" });
   }
 });
+
 
 // Protected route example
 app.get("/protected", authMiddleware, (req, res) => {
